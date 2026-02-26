@@ -2,16 +2,28 @@
 
 An agent skill for developing Google Apps Script projects locally using the `clasp` CLI — no browser copy-paste.
 
+## Prerequisites
+
+Install clasp before using this skill:
+
+```bash
+npm install -g @google/clasp
+clasp --version   # verify (needs Node.js 22+)
+```
+
+Also enable the Apps Script API once in your Google account:
+https://script.google.com/home/usersettings → toggle **Google Apps Script API** ON
+
 ## Install
 
 ```bash
-npx skills add <owner>/appscript -g -a claude-code
+npx skills add SMKeramati/appscript -g -a claude-code
 ```
 
 Or install to all supported agents:
 
 ```bash
-npx skills add <owner>/appscript --all
+npx skills add SMKeramati/appscript --all
 ```
 
 ## What it does
@@ -42,7 +54,7 @@ Reference files load on demand — only when the agent needs the detail.
 ## Requirements
 
 - Node.js 22+
-- `npm install -g @google/clasp`
+- clasp: `npm install -g @google/clasp`
 - Apps Script API enabled: https://script.google.com/home/usersettings
 
 ## License
