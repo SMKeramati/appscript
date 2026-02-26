@@ -20,6 +20,12 @@ https://script.google.com/home/usersettings → toggle **Google Apps Script API*
 npx skills add SMKeramati/appscript -g
 ```
 
+If Claude Code isn't picked up automatically:
+
+```bash
+npx skills add SMKeramati/appscript -g -a claude-code
+```
+
 ## What it does
 
 Teaches your AI coding agent the full local GAS development lifecycle:
