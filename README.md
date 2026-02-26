@@ -17,13 +17,7 @@ https://script.google.com/home/usersettings → toggle **Google Apps Script API*
 ## Install
 
 ```bash
-npx skills add SMKeramati/appscript -g -a claude-code
-```
-
-Or install to all supported agents:
-
-```bash
-npx skills add SMKeramati/appscript --all
+npx skills add SMKeramati/appscript -g
 ```
 
 ## What it does
