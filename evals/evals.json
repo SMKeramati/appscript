@@ -1,0 +1,49 @@
+{
+  "skill_name": "appscript",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have an existing Google Sheet that my team uses to track sales leads. I want to set up a script that automatically emails a weekly summary (total leads, closed vs open) to my manager every Monday at 8am. How do I set this up with clasp so I can edit it locally?",
+      "expected_output": "Step-by-step guide covering: (1) getting the script ID from the bound script in the Sheet, (2) cloning it with clasp, (3) writing the GAS code using SpreadsheetApp.getActiveSpreadsheet(), reading data in bulk with getValues(), composing the email with GmailApp.sendEmail(), and (4) setting up a time-based installable trigger. Should mention bound vs standalone difference and the V8 runtime.",
+      "files": [],
+      "assertions": [
+        "Explains how to get the Script ID from the existing Sheet (Extensions > Apps Script or Project Settings)",
+        "Uses clasp clone-script command to clone the bound script",
+        "Uses SpreadsheetApp.getActiveSpreadsheet() for the bound script (not openById)",
+        "Uses getValues() for bulk data reading instead of looping getValue()",
+        "Uses GmailApp.sendEmail() or MailApp.sendEmail() for the email",
+        "Sets up a time-based trigger using ScriptApp.newTrigger().timeBased().everyWeeks(1) or similar",
+        "Mentions the 6-minute execution limit or batching consideration"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building a Google Apps Script web app that needs to receive POST requests from a Stripe webhook (JSON payload with event type and data). It should log each payment to a Google Sheet — one row per payment with timestamp, amount, customer email, and status. Walk me through writing this and deploying it.",
+      "expected_output": "Complete guide covering: doPost(e) function, JSON.parse(e.postData.contents), writing to a Sheet row with appendRow or setValues, deploying as a Web App with 'anyone' access, and getting the webhook URL. Should include the full code structure.",
+      "files": [],
+      "assertions": [
+        "Implements doPost(e) function correctly",
+        "Parses request body with JSON.parse(e.postData.contents)",
+        "Writes data to Sheets using appendRow() or setValues()",
+        "Returns a ContentService response with setMimeType(ContentService.MimeType.JSON)",
+        "Explains how to deploy as a Web App (clasp create-deployment or the editor)",
+        "Mentions setting access to ANYONE or ANYONE_ANONYMOUS in webapp config",
+        "Shows how to get the deployment URL for use as a webhook endpoint"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My Apps Script that processes 500 rows of data in a Sheet keeps hitting the 6-minute timeout. It loops through each row, calls an external API for each one, and writes results back. What are my options for fixing this?",
+      "expected_output": "Concrete strategies: (1) batch the Sheets reads/writes outside the loop, (2) add Utilities.sleep() for rate limiting, (3) use ContinuationTokens or PropertiesService to checkpoint progress and chain via a time trigger, (4) mention daily quota limits and Workspace account differences.",
+      "files": [],
+      "assertions": [
+        "Identifies the core problem as too many serial API calls",
+        "Suggests batching Sheets operations (getValues/setValues outside the loop)",
+        "Mentions Utilities.sleep() for external API rate limiting",
+        "Explains using PropertiesService to save progress/checkpoint between runs",
+        "Explains chaining execution via triggers (e.g. set a trigger to resume from checkpoint)",
+        "Mentions the 6-minute hard limit explicitly"
+      ]
+    }
+  ]
+}

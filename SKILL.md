@@ -1,6 +1,6 @@
 ---
 name: appscript
-description: Use this skill whenever the user wants to develop, edit, push, deploy, debug, or manage Google Apps Script (GAS) projects using the clasp CLI. Triggers on any mention of clasp, Apps Script, .gs files, script.google.com, appsscript.json, Google Sheets/Docs/Forms/Slides/Drive automation, GAS triggers, or local GAS development. Use this when someone wants to automate Google Workspace, build a Sheet macro, create a web app on GAS, set up a time trigger, or write any script that runs in Google's cloud — even if they don't say "clasp" explicitly.
+description: Use this skill whenever the user wants to develop, edit, push, deploy, debug, or manage Google Apps Script (GAS) projects using the clasp CLI. Triggers on any mention of clasp, Apps Script, .gs files, script.google.com, appsscript.json, Google Sheets/Docs/Forms/Slides/Drive automation, GAS triggers, or local GAS development. Also use this when someone wants to automate Google Workspace, build a Sheet macro, create a web app on GAS, set up a time trigger, write any script that runs in Google's cloud, use TypeScript with Apps Script, create a GAS library, or integrate Gemini AI into a Sheet — even if they don't say "clasp" explicitly.
 license: MIT
 compatibility: Requires Node.js 22+ and clasp CLI (npm install -g @google/clasp). Works with Claude Code, Cursor, Codex CLI, and any agent with shell access.
 allowed-tools: Bash Read Write Edit Glob
@@ -22,13 +22,37 @@ npm install -g @google/clasp   # install if missing
 # Without this, every clasp command fails with an authorization error.
 
 clasp login                                    # authenticate (opens browser)
-clasp create-script --title "My Script"        # start a new project
+clasp create-script --title "My Script"        # start a new standalone project
 # — or —
 clasp clone-script <scriptId>                  # clone existing project
 # scriptId: script.google.com → gear icon → Script ID
 ```
 
 Edit your `.gs` files locally, then `clasp push`. That's the core loop.
+
+---
+
+## Script Types: Bound vs. Standalone
+
+This distinction matters for how you create, clone, and access data.
+
+**Standalone scripts** — Created via script.google.com or `clasp create-script`. Live independently in Drive. Access Google services through explicit IDs (e.g., `SpreadsheetApp.openById('...')`).
+
+**Container-bound scripts** — Created via "Extensions → Apps Script" from inside a Sheet, Doc, Form, or Slide. Tightly coupled to the parent file. Can call `SpreadsheetApp.getActiveSpreadsheet()` with no arguments because GAS knows which file the script belongs to. Triggers like `onEdit(e)` only work for bound scripts.
+
+**To work locally on a bound script:**
+1. Open the Sheet/Doc → Extensions → Apps Script
+2. Gear icon (Project Settings) → copy the Script ID
+3. `clasp clone-script <scriptId>` — now you have local files
+
+**Key behavioral difference:**
+```javascript
+// Bound script — works without an ID
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+// Standalone script — must supply the ID
+const ss = SpreadsheetApp.openById('1BxSheet...');
+```
 
 ---
 
@@ -46,7 +70,7 @@ my-project/
 
 All `.gs` files share a **global scope** — there are no modules, no `import`/`export`. A function defined in `Utils.gs` is automatically available in `Code.gs`. File load order matters for top-level declarations; control it with `filePushOrder` in `.clasp.json` if needed.
 
-**Always use V8 runtime** in `appsscript.json`. V8 unlocks ES6+ (arrow functions, async/await, destructuring). Without it you're on ES5 Rhino.
+**Always use V8 runtime** in `appsscript.json`. V8 unlocks ES6+ (arrow functions, async/await syntax, destructuring). Without it you're on ES5 Rhino.
 
 ```json
 {
@@ -142,6 +166,73 @@ clasp disable-api drive
 
 ---
 
+## TypeScript
+
+Clasp v3 removed built-in TypeScript transpilation. The recommended pattern is to compile externally and push the output.
+
+**Setup:**
+```bash
+npm install --save-dev typescript rollup @rollup/plugin-typescript @types/google-apps-script
+```
+
+**rollup.config.js:**
+```javascript
+import typescript from '@rollup/plugin-typescript';
+export default {
+  input: 'src/index.ts',
+  output: { file: 'dist/Code.js', format: 'esm' },
+  plugins: [typescript()]
+};
+```
+
+**`.clasp.json`** — point rootDir at the compiled output:
+```json
+{ "scriptId": "...", "rootDir": "dist/" }
+```
+
+Build and push:
+```bash
+npx rollup -c && clasp push
+```
+
+**Type hints without TypeScript** — install types for autocomplete in VS Code:
+```bash
+npm install --save-dev @types/google-apps-script
+```
+
+---
+
+## GAS Libraries
+
+Libraries let you share code between GAS projects without copying files.
+
+**Using a library:**
+1. Get the library's Script ID from its author
+2. Add to `appsscript.json`:
+```json
+{
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "MyLib",
+        "libraryId": "1T03atLib...",
+        "version": "3"
+      }
+    ]
+  }
+}
+```
+3. Access it as `MyLib.functionName()` in your code
+
+**Creating a library:**
+1. Write your script as normal
+2. Deploy as a "Library" type (in the script editor: Deploy → New Deployment → Library)
+3. Share the Script ID with consumers; they add a version number after each new deployment
+
+Note: libraries add ~50ms of overhead per function call since GAS resolves them at runtime. For performance-critical hot paths, inline the code instead.
+
+---
+
 ## GAS Code Quality
 
 ### Batch all Sheets operations
@@ -171,8 +262,15 @@ SpreadsheetApp.flush();   // commit buffered writes before any subsequent read
 ```javascript
 // ✅ Works in V8
 const fn = (x) => x * 2;
-async function fetchData() { const res = await somePromise; }
 const [a, ...rest] = array;
+
+// ⚠️ async/await syntax works in V8, BUT GAS has no event loop
+// Only use it if you have a real native Promise to await.
+// setTimeout, setInterval, and browser I/O never fire — there's no scheduler.
+async function example() {
+  const result = await someNativePromise;   // ok
+  // await fetch(...) — won't work, use UrlFetchApp.fetch() instead
+}
 
 // ❌ Never works in GAS (any runtime)
 import { foo } from './utils.js'   // no ES modules — global scope only
@@ -245,6 +343,26 @@ if (!data) {
 return JSON.parse(data);
 ```
 
+**Rate limit protection with sleep:**
+```javascript
+// When hitting APIs that throttle (e.g. UrlFetch returning 429)
+items.forEach((item, i) => {
+  processItem(item);
+  if (i % 10 === 9) Utilities.sleep(1000);   // pause 1s every 10 calls
+});
+```
+
+**Gemini AI (via Ai service — GAS native):**
+```javascript
+// Available in GAS without any API key setup — uses project's linked GCP
+function summarizeText(text) {
+  const model = Ai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const result = model.generateContent(text);
+  return result.response.text();
+}
+```
+Note: `Ai` service requires the project to have a linked GCP project with the Vertex AI or Generative Language API enabled. Alternatively, call the Gemini REST API via `UrlFetchApp.fetch()` with your own API key.
+
 ---
 
 ## Troubleshooting
@@ -259,6 +377,20 @@ return JSON.parse(data);
 | Stale data after write | Writes are buffered | Call `SpreadsheetApp.flush()` before reading |
 | Push confirmation loop | Interactive terminal prompt | Add `--force` flag |
 | Command not found after upgrade | Clasp v2 → v3 renames | See rename table in `references/clasp-commands.md` |
+| `HttpResponseException: 429` | UrlFetch rate limit hit | Add `Utilities.sleep(1000)` between calls; batch requests |
+| `ReferenceError: X is not defined` | File load order issue | Add `filePushOrder` in `.clasp.json` |
+
+---
+
+## MCP / AI Integration
+
+Use clasp as an MCP server so Claude Code can manage GAS projects directly:
+
+```bash
+claude mcp add clasp -- npx -y @google/clasp mcp
+# Or in Claude Code:
+# /plugin install @google/clasp
+```
 
 ---
 
@@ -269,5 +401,5 @@ Load these on demand — don't pre-read them unless you need the detail.
 | File | Load when |
 |------|-----------|
 | [`references/clasp-commands.md`](references/clasp-commands.md) | Need full flag reference for any command, or migrating from clasp v2 (full rename table there) |
-| [`references/gas-reference.md`](references/gas-reference.md) | Need daily quotas, all available services, deployment manifest fields, more code patterns |
+| [`references/gas-reference.md`](references/gas-reference.md) | Need daily quotas, all available services, deployment manifest fields, more code patterns, trigger types |
 | [`references/config-files.md`](references/config-files.md) | Need complete `.clasp.json` / `appsscript.json` / `.claspignore` field reference |
